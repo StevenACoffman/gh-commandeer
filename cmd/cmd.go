@@ -1,5 +1,6 @@
 // Package cmd is the dispatcher; it routes CLI arguments to the matching command.
 package cmd
+
 // climax:name gh-commandeer
 // climax:root-pkg root
 
@@ -11,9 +12,12 @@ import (
 
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
+
+	"github.com/StevenACoffman/gh-commandeer/cmd/push"
+	"github.com/StevenACoffman/gh-commandeer/cmd/restore"
 	"github.com/StevenACoffman/gh-commandeer/cmd/root"
+	"github.com/StevenACoffman/gh-commandeer/cmd/status"
 	"github.com/StevenACoffman/gh-commandeer/cmd/version"
-	// climax:imports
 )
 
 // Run parses args and dispatches to the matching command.
@@ -21,6 +25,9 @@ import (
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	r := root.New(stdout, stderr)
 	version.New(r)
+	push.New(r)
+	status.New(r)
+	restore.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args); err != nil {

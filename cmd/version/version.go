@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/peterbourgon/ff/v4"
+
 	"github.com/StevenACoffman/gh-commandeer/cmd/root"
 )
 
@@ -29,7 +30,6 @@ func New(parent *root.Config) *Config {
 		Name:      "version",
 		Usage:     "gh-commandeer version",
 		ShortHelp: "print version information",
-		LongHelp:  "Prints version information for the application.",
 		Flags:     cfg.Flags,
 		Exec:      cfg.exec,
 	}
