@@ -24,14 +24,15 @@ type Config struct {
 func New(parent *root.Config) *Config {
 	var cfg Config
 	cfg.Config = parent
+	name := parent.Command.Name
 	cfg.Flags = ff.NewFlagSet("status").SetParent(parent.Flags)
 	cfg.Command = &ff.Command{
 		Name:      "status",
-		Usage:     "gh-commandeer status [FLAGS] [<pr-number>]",
+		Usage:     name + " status [FLAGS] [<pr-number>]",
 		ShortHelp: "show PR details without making any changes",
 		LongHelp: `Print the title, contributor, branch, and maintainer-edit permission for a PR.
 
-<pr-number> can be omitted if the branch was checked out with gh-commandeer.`,
+<pr-number> can be omitted if the branch was checked out with ` + name + `.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}

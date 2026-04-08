@@ -24,19 +24,20 @@ type Config struct {
 func New(parent *root.Config) *Config {
 	var cfg Config
 	cfg.Config = parent
+	name := parent.Command.Name
 	cfg.Flags = ff.NewFlagSet("restore").SetParent(parent.Flags)
 	cfg.Command = &ff.Command{
 		Name:      "restore",
-		Usage:     "gh-commandeer restore [FLAGS] [<pr-number>]",
+		Usage:     name + " restore [FLAGS] [<pr-number>]",
 		ShortHelp: "remove the contributor's remote and clean up stored PR metadata",
-		LongHelp: `Restore undoes what 'gh-commandeer <pr-number>' did:
+		LongHelp: `Restore undoes what '` + name + ` <pr-number>' did:
 it removes the contributor's fork remote and clears the stored PR number
 from .git/config.
 
 The local branch is left in place — delete it manually with:
   git branch -D <login>/<branch>
 
-<pr-number> can be omitted if the branch was checked out with gh-commandeer.`,
+<pr-number> can be omitted if the branch was checked out with ` + name + `.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}

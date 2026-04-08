@@ -28,7 +28,7 @@ func New(parent *root.Config) *Config {
 	cfg.Flags = ff.NewFlagSet("version").SetParent(parent.Flags)
 	cfg.Command = &ff.Command{
 		Name:      "version",
-		Usage:     "gh-commandeer version",
+		Usage:     parent.Command.Name + " version",
 		ShortHelp: "print version information",
 		Flags:     cfg.Flags,
 		Exec:      cfg.exec,

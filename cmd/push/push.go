@@ -28,16 +28,17 @@ func New(parent *root.Config) *Config {
 	cfg.Config = parent
 	cfg.Flags = ff.NewFlagSet("push").SetParent(parent.Flags)
 	cfg.Flags.BoolVar(&cfg.force, 0, "force", "force-push (required after git rebase)")
+	name := parent.Command.Name
 	cfg.Command = &ff.Command{
 		Name:      "push",
-		Usage:     "gh-commandeer push [FLAGS] [<pr-number>]",
+		Usage:     name + " push [FLAGS] [<pr-number>]",
 		ShortHelp: "push changes back to a contributor's PR branch",
 		LongHelp: `Push sends the current branch to the contributor's fork branch,
 updating their pull request with your changes.
 
 Use --force if you rebased the branch before pushing.
 
-<pr-number> can be omitted if the branch was checked out with gh-commandeer.`,
+<pr-number> can be omitted if the branch was checked out with ` + name + `.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}

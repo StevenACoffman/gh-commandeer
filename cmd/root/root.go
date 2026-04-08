@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -12,6 +13,15 @@ import (
 	"github.com/StevenACoffman/gh-commandeer/pkg/github"
 	"github.com/StevenACoffman/gh-commandeer/pkg/gitops"
 )
+
+// CmdName returns "gh commandeer" when running as a gh extension (GH_EXTENSION
+// is set by gh) and "gh-commandeer" otherwise.
+func CmdName() string {
+	if os.Getenv("GH_EXTENSION") != "" {
+		return "gh commandeer"
+	}
+	return "gh-commandeer"
+}
 
 // Config holds shared I/O writers, flags, and the root ff.Command.
 // All subcommand configs embed *Config to inherit these.
@@ -35,8 +45,10 @@ func New(stdout, stderr io.Writer) *Config {
 	cfg.Stdout = stdout
 	cfg.Stderr = stderr
 
+	name := CmdName()
+
 	// Shared flags: inherited by all subcommands via SetParent(parent.Flags).
-	cfg.Flags = ff.NewFlagSet("gh-commandeer")
+	cfg.Flags = ff.NewFlagSet(name)
 	cfg.Flags.StringVar(
 		&cfg.Owner,
 		0,
@@ -56,11 +68,11 @@ func New(stdout, stderr io.Writer) *Config {
 		0,
 		"token",
 		"",
-		"GitHub personal access token (default: $GITHUB_TOKEN)",
+		"GitHub personal access token (default: $GH_TOKEN or $GITHUB_TOKEN)",
 	)
 
 	// Root-only flags: visible only in the root command's help output.
-	cfg.rootFlags = ff.NewFlagSet("gh-commandeer-root").SetParent(cfg.Flags)
+	cfg.rootFlags = ff.NewFlagSet(name + "-root").SetParent(cfg.Flags)
 	cfg.rootFlags.BoolVar(
 		&cfg.NoFetch,
 		0,
@@ -69,14 +81,14 @@ func New(stdout, stderr io.Writer) *Config {
 	)
 
 	cfg.Command = &ff.Command{
-		Name:      "gh-commandeer",
-		Usage:     "gh-commandeer [FLAGS] <pr-number>",
+		Name:      name,
+		Usage:     name + " [FLAGS] <pr-number>",
 		ShortHelp: "check out a contributor's PR branch and push your changes back",
 		LongHelp: `Adds the contributor's fork as a git remote, fetches it,
 and checks out their PR branch so you can commit changes to it.
 
 After making changes, optionally run 'git rebase origin/main', then:
-  gh-commandeer push`,
+  ` + name + ` push`,
 		Flags: cfg.rootFlags,
 		Exec:  cfg.exec,
 	}
@@ -160,14 +172,16 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 	if created {
 		fmt.Fprintf(
 			cfg.Stdout,
-			"checked out %q — make your changes, then run:\n  gh-commandeer push\n",
+			"checked out %q — make your changes, then run:\n  %s push\n",
 			localBranch,
+			CmdName(),
 		)
 	} else {
 		fmt.Fprintf(
 			cfg.Stdout,
-			"switched to existing branch %q — make your changes, then run:\n  gh-commandeer push\n",
+			"switched to existing branch %q — make your changes, then run:\n  %s push\n",
 			localBranch,
+			CmdName(),
 		)
 	}
 	return nil

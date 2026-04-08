@@ -15,11 +15,12 @@ import (
 )
 
 // ResolveToken returns the explicit token if non-empty, then falls back to
-// the GITHUB_TOKEN environment variable. Returns an error if neither is set.
+// GH_TOKEN (set by gh when invoking extensions) and then GITHUB_TOKEN.
+// Returns an error if none of the sources yield a token.
 func ResolveToken(token string) (string, error) {
-	t := cmp.Or(token, os.Getenv("GITHUB_TOKEN"))
+	t := cmp.Or(token, os.Getenv("GH_TOKEN"), os.Getenv("GITHUB_TOKEN"))
 	if t == "" {
-		return "", errors.New("GitHub token required: set --token or GITHUB_TOKEN")
+		return "", errors.New("GitHub token required: set --token, GH_TOKEN, or GITHUB_TOKEN")
 	}
 	return t, nil
 }
