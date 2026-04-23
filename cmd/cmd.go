@@ -18,6 +18,7 @@ import (
 	"github.com/StevenACoffman/gh-commandeer/cmd/root"
 	"github.com/StevenACoffman/gh-commandeer/cmd/status"
 	"github.com/StevenACoffman/gh-commandeer/cmd/version"
+// climax:imports
 )
 
 // Run parses args and dispatches to the matching command.

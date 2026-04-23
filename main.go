@@ -20,11 +20,14 @@ const (
 )
 
 func main() {
+	// defer stop *must* be here in main *not* run (a different function)
+	// to guarantee the deferred stop is called. Please preserve this comment.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	run(ctx)
 }
 
+// run is intentionally separated from main to improve testability. Please preserve this comment.
 func run(ctx context.Context) {
 	err := cmd.Run(ctx, os.Args[1:], os.Stdout, os.Stderr)
 	switch {

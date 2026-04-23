@@ -149,11 +149,15 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 	}
 
 	if !cfg.NoFetch {
+		auth, err := gitops.AuthForURL(forkURL, token)
+		if err != nil {
+			return err
+		}
 		if err := gitops.FetchRemote(
 			ctx,
 			gitRepo,
 			remoteName,
-			gitops.TokenAuth(token),
+			auth,
 			cfg.Stderr,
 		); err != nil {
 			return err

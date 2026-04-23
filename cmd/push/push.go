@@ -82,6 +82,13 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 		return err
 	}
 
+	if !pr.AllowMaintainerEdits {
+		fmt.Fprintf(cfg.Stderr,
+			"hint: PR #%d does not allow maintainer edits — ask the contributor to enable it in the PR settings\n",
+			prNum,
+		)
+	}
+
 	expectedBranch := pr.ContributorLogin + "/" + pr.HeadBranch
 	if currentBranch != expectedBranch {
 		fmt.Fprintf(cfg.Stderr, "hint: to push anyway: git push %s %s:%s\n",
@@ -90,6 +97,11 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 			currentBranch, prNum, expectedBranch)
 	}
 
+	forkURL := pr.ForkURL(originURL)
+	pushAuth, err := gitops.AuthForURL(forkURL, token)
+	if err != nil {
+		return err
+	}
 	if err := gitops.PushToPR(
 		ctx,
 		gitRepo,
@@ -97,7 +109,7 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 		currentBranch,
 		pr.HeadBranch,
 		cfg.force,
-		gitops.TokenAuth(token),
+		pushAuth,
 	); err != nil {
 		return err
 	}

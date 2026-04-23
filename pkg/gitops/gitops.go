@@ -6,12 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
+	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/skeema/knownhosts"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 // OpenRepo opens the git repository rooted at dir or any parent directory.
@@ -90,7 +97,7 @@ func FetchRemote(
 	ctx context.Context,
 	repo *git.Repository,
 	remoteName string,
-	auth *githttp.BasicAuth,
+	auth transport.AuthMethod,
 	progress io.Writer,
 ) error {
 	err := repo.FetchContext(ctx, &git.FetchOptions{
@@ -167,7 +174,7 @@ func PushToPR(
 	repo *git.Repository,
 	remoteName, localBranch, remoteBranch string,
 	force bool,
-	auth *githttp.BasicAuth,
+	auth transport.AuthMethod,
 ) error {
 	refspec := config.RefSpec(
 		"refs/heads/" + localBranch + ":refs/heads/" + remoteBranch,
@@ -202,6 +209,52 @@ func TokenAuth(token string) *githttp.BasicAuth {
 		Username: "x-oauth-basic",
 		Password: token,
 	}
+}
+
+// IsSSHURL reports whether remoteURL uses SSH transport (git@ or scp-style).
+func IsSSHURL(remoteURL string) bool {
+	return strings.HasPrefix(remoteURL, "git@") || strings.Contains(remoteURL, "github.com:")
+}
+
+// AuthForURL returns the appropriate auth for the remote URL.
+// HTTPS remotes get token-based BasicAuth; SSH remotes get SSH agent auth.
+func AuthForURL(remoteURL, token string) (transport.AuthMethod, error) {
+	if IsSSHURL(remoteURL) {
+		return sshAgentAuth()
+	}
+	return TokenAuth(token), nil
+}
+
+// sshAgentAuth creates SSH agent auth with known_hosts host key verification.
+// go-git's DefaultAuthBuilder has a known bug where its internal known_hosts
+// checker fails on hashed entries and multiple key types for the same host.
+// We build the auth explicitly so we control the HostKeyCallback.
+func sshAgentAuth() (transport.AuthMethod, error) {
+	auth, err := gitssh.NewSSHAgentAuth("git")
+	if err != nil {
+		return nil, fmt.Errorf("connect to SSH agent: %w", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	knownHostsPath := filepath.Join(home, ".ssh", "known_hosts")
+	cb, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		// known_hosts unreadable — proceed without host key verification.
+		// This is the same behaviour as `ssh -o StrictHostKeyChecking=no`.
+		auth.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+			HostKeyCallback: gossh.InsecureIgnoreHostKey(),
+		}
+		return auth, nil
+	}
+	// skeema/knownhosts.HostKeyCallback has the same underlying signature as
+	// golang.org/x/crypto/ssh.HostKeyCallback; convert between the two named types.
+	auth.HostKeyCallbackHelper = gitssh.HostKeyCallbackHelper{
+		HostKeyCallback: gossh.HostKeyCallback(cb),
+	}
+	return auth, nil
 }
 
 // StorePRNumber writes prNum into .git/config under
