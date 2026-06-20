@@ -83,7 +83,8 @@ func (cfg *Config) exec(ctx context.Context, args []string) error {
 	}
 
 	if !pr.AllowMaintainerEdits {
-		fmt.Fprintf(cfg.Stderr,
+		fmt.Fprintf(
+			cfg.Stderr,
 			"hint: PR #%d does not allow maintainer edits — ask the contributor to enable it in the PR settings\n",
 			prNum,
 		)

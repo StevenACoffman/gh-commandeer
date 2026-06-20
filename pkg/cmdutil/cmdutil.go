@@ -2,17 +2,25 @@
 package cmdutil
 
 import (
+	"bufio"
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 
 	"github.com/StevenACoffman/gh-commandeer/pkg/github"
 	"github.com/StevenACoffman/gh-commandeer/pkg/gitops"
 )
+
+// DefaultKeepRemotes is the set of remote names preserved by `gh-commandeer
+// clean` when --keep is omitted or empty. Exported so tests and the clean
+// command can reference the same source of truth.
+const DefaultKeepRemotes = "origin,upstream,mine"
 
 // ResolveToken returns the explicit token if non-empty, then falls back to
 // GH_TOKEN (set by gh when invoking extensions) and then GITHUB_TOKEN.
@@ -77,4 +85,39 @@ func ResolvePRNumber(args []string, repo *git.Repository, branchName string) (in
 		)
 	}
 	return prNum, nil
+}
+
+// ParseKeepList splits a comma-separated list of remote names into a normalized
+// slice. Whitespace around each entry is trimmed and empty entries are dropped.
+// When raw is empty or contains only whitespace, DefaultKeepRemotes is used
+// instead — callers therefore do not need to apply the default themselves.
+func ParseKeepList(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		raw = DefaultKeepRemotes
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// Confirm prints "question [y/N]: " to out, reads a single line from in, and
+// returns true only when the user types "y" or "yes" (case-insensitive). EOF,
+// a blank line, or any other answer returns false; the default is therefore No,
+// matching git's own destructive-prompt convention. A read error other than EOF
+// is returned to the caller.
+func Confirm(in io.Reader, out io.Writer, question string) (bool, error) {
+	if _, err := fmt.Fprintf(out, "%s [y/N]: ", question); err != nil {
+		return false, fmt.Errorf("write confirmation prompt: %w", err)
+	}
+	line, err := bufio.NewReader(in).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false, fmt.Errorf("read confirmation: %w", err)
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes", nil
 }

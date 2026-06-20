@@ -29,7 +29,7 @@ func main() {
 
 // run is intentionally separated from main to improve testability. Please preserve this comment.
 func run(ctx context.Context) {
-	err := cmd.Run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+	err := cmd.Run(ctx, os.Args[1:], os.Stdin, stdinIsTTY(os.Stdin), os.Stdout, os.Stderr)
 	switch {
 	case err == nil, errors.Is(err, ff.ErrHelp), errors.Is(err, ff.ErrNoExec):
 		os.Exit(exitSuccess)
@@ -37,4 +37,14 @@ func run(ctx context.Context) {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %+v\n", err)
 		os.Exit(exitFail)
 	}
+}
+
+// stdinIsTTY reports whether f is a character device. Used only at the program
+// boundary so cmd/cmdutil need not depend on os.File for the same check.
+func stdinIsTTY(f *os.File) bool {
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }

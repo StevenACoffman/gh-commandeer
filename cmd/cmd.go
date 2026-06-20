@@ -13,22 +13,31 @@ import (
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
+	"github.com/StevenACoffman/gh-commandeer/cmd/clean"
 	"github.com/StevenACoffman/gh-commandeer/cmd/push"
 	"github.com/StevenACoffman/gh-commandeer/cmd/restore"
 	"github.com/StevenACoffman/gh-commandeer/cmd/root"
 	"github.com/StevenACoffman/gh-commandeer/cmd/status"
 	"github.com/StevenACoffman/gh-commandeer/cmd/version"
-// climax:imports
 )
 
 // Run parses args and dispatches to the matching command.
 // args must not include the executable name (pass os.Args[1:]).
-func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	r := root.New(stdout, stderr)
+// stdinIsTTY tells interactive commands whether prompting is safe; main
+// computes it from os.Stdin and tests inject the value they need.
+func Run(
+	ctx context.Context,
+	args []string,
+	stdin io.Reader,
+	stdinIsTTY bool,
+	stdout, stderr io.Writer,
+) error {
+	r := root.New(stdin, stdinIsTTY, stdout, stderr)
 	version.New(r)
 	push.New(r)
 	status.New(r)
 	restore.New(r)
+	clean.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args); err != nil {

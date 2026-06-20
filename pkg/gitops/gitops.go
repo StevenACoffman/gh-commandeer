@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -294,15 +295,113 @@ func LoadPRNumber(repo *git.Repository, branchName string) (int, bool, error) {
 	return prNum, true, nil
 }
 
-// ClearPRNumber removes the stored PR number for branchName.
+// ClearPRNumber removes the stored PR number for branchName. If the
+// [gh-commandeer "branchName"] subsection has no other options left, the
+// subsection itself is removed so an empty block is not left behind in
+// .git/config.
 func ClearPRNumber(repo *git.Repository, branchName string) error {
 	repoCfg, err := repo.Config()
 	if err != nil {
 		return fmt.Errorf("get config: %w", err)
 	}
-	repoCfg.Raw.Section("gh-commandeer").Subsection(branchName).RemoveOption("pr")
+	section := repoCfg.Raw.Section("gh-commandeer")
+	sub := section.Subsection(branchName)
+	sub.RemoveOption("pr")
+	if len(sub.Options) == 0 {
+		section.RemoveSubsection(branchName)
+	}
 	if err := repo.SetConfig(repoCfg); err != nil {
 		return fmt.Errorf("clear PR number for %q: %w", branchName, err)
+	}
+	return nil
+}
+
+// RemoteInfo is a name + first URL pair drawn from a repository's remotes.
+type RemoteInfo struct {
+	Name string
+	URL  string
+}
+
+// RemotesExcept returns the configured remotes whose name is not in keep,
+// sorted by name. Keep is matched case-sensitively to align with git's own
+// remote-name handling. A remote with no URLs is reported with URL "".
+func RemotesExcept(repo *git.Repository, keep []string) ([]RemoteInfo, error) {
+	remotes, err := repo.Remotes()
+	if err != nil {
+		return nil, fmt.Errorf("list remotes: %w", err)
+	}
+	skip := make(map[string]struct{}, len(keep))
+	for _, k := range keep {
+		skip[k] = struct{}{}
+	}
+	out := make([]RemoteInfo, 0, len(remotes))
+	for _, r := range remotes {
+		c := r.Config()
+		if _, protected := skip[c.Name]; protected {
+			continue
+		}
+		var url string
+		if len(c.URLs) > 0 {
+			url = c.URLs[0]
+		}
+		out = append(out, RemoteInfo{Name: c.Name, URL: url})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// BranchInfo names a local branch and the remote it tracks via branch.<name>.remote.
+type BranchInfo struct {
+	Name   string
+	Remote string
+}
+
+// OrphanedBranches returns branches whose upstream remote is in removed but
+// that should still be safe to delete: the current HEAD branch is excluded so
+// the caller does not try to delete the branch it is on, and any branch whose
+// remote is "." (local-only tracking) is excluded because it has no fork remote
+// to be orphaned by. Results are sorted by branch name.
+func OrphanedBranches(
+	repo *git.Repository,
+	removed []string,
+	currentBranch string,
+) ([]BranchInfo, error) {
+	cfg, err := repo.Config()
+	if err != nil {
+		return nil, fmt.Errorf("get config: %w", err)
+	}
+	removedSet := make(map[string]struct{}, len(removed))
+	for _, r := range removed {
+		removedSet[r] = struct{}{}
+	}
+	out := make([]BranchInfo, 0, len(cfg.Branches))
+	for name, b := range cfg.Branches {
+		if name == currentBranch {
+			continue
+		}
+		if b.Remote == "" || b.Remote == "." {
+			continue
+		}
+		if _, orphaned := removedSet[b.Remote]; !orphaned {
+			continue
+		}
+		out = append(out, BranchInfo{Name: name, Remote: b.Remote})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// DeleteBranchAndRef removes the local branch reference and its [branch
+// "name"] config entry. ErrBranchNotFound / ErrReferenceNotFound are treated as
+// "already gone" so the caller can apply the operation idempotently.
+func DeleteBranchAndRef(repo *git.Repository, name string) error {
+	refName := plumbing.NewBranchReferenceName(name)
+	if err := repo.Storer.RemoveReference(refName); err != nil &&
+		!errors.Is(err, plumbing.ErrReferenceNotFound) {
+		return fmt.Errorf("remove branch ref %q: %w", name, err)
+	}
+	if err := repo.DeleteBranch(name); err != nil && !errors.Is(err, git.ErrBranchNotFound) {
+		return fmt.Errorf("remove branch config %q: %w", name, err)
 	}
 	return nil
 }

@@ -23,13 +23,17 @@ func CmdName() string {
 	return "gh-commandeer"
 }
 
-// Config holds shared I/O writers, flags, and the root ff.Command.
-// All subcommand configs embed *Config to inherit these.
+// Config holds shared I/O streams, flags, and the root ff.Command.
+// All subcommand configs embed *Config to inherit these. Stdin and StdinIsTTY
+// are populated by main and threaded through cmd.Run so interactive prompts
+// (e.g. `clean`) can be tested without a real terminal.
 type Config struct {
-	Stdout  io.Writer
-	Stderr  io.Writer
-	Flags   *ff.FlagSet // shared flags inherited by subcommands: --owner, --repo, --token
-	Command *ff.Command
+	Stdin      io.Reader
+	StdinIsTTY bool
+	Stdout     io.Writer
+	Stderr     io.Writer
+	Flags      *ff.FlagSet // shared flags inherited by subcommands: --owner, --repo, --token
+	Command    *ff.Command
 
 	Owner   string
 	Repo    string
@@ -39,9 +43,13 @@ type Config struct {
 	rootFlags *ff.FlagSet // root-only flags: --no-fetch (not inherited by subcommands)
 }
 
-// New returns a new root Config with the given I/O writers.
-func New(stdout, stderr io.Writer) *Config {
+// New returns a new root Config with the given I/O streams. stdinIsTTY tells
+// commands whether stdin is interactive so they can refuse to silently skip
+// prompts under a non-TTY input.
+func New(stdin io.Reader, stdinIsTTY bool, stdout, stderr io.Writer) *Config {
 	var cfg Config
+	cfg.Stdin = stdin
+	cfg.StdinIsTTY = stdinIsTTY
 	cfg.Stdout = stdout
 	cfg.Stderr = stderr
 
